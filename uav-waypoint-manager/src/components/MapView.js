@@ -1,14 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 
 const MapView = () => {
   const [map, setMap] = useState(null);
   const [markers, setMarkers] = useState([]);
+  const polylineRef = useRef(null);
 
-  // Default center (you can change this to your preferred location)
+  // Default center - Anuradhapura, Sri Lanka
   const defaultCenter = {
-    lat: 40.7128,
-    lng: -74.0060
+    lat: 8.3114,
+    lng: 80.4037
   };
 
   const mapContainerStyle = {
@@ -17,13 +18,27 @@ const MapView = () => {
   };
 
   const mapOptions = {
-    zoom: 12,
+    zoom: 13,
     center: defaultCenter,
     mapTypeId: 'satellite', // Using satellite view for UAV operations
     mapTypeControl: true,
     streetViewControl: false,
     fullscreenControl: true,
     zoomControl: true,
+  };
+
+  // Path styling options
+  const pathOptions = {
+    strokeColor: '#FF0000',
+    strokeOpacity: 0.8,
+    strokeWeight: 3,
+    fillColor: '#FF0000',
+    fillOpacity: 0.35,
+    clickable: false,
+    draggable: false,
+    editable: false,
+    visible: true,
+    zIndex: 1
   };
 
   const onLoad = useCallback((map) => {
@@ -44,6 +59,66 @@ const MapView = () => {
     setMarkers([...markers, newMarker]);
   };
 
+  // Handle marker drag to update waypoint position
+  const handleMarkerDrag = useCallback((markerId, event) => {
+    setMarkers(prevMarkers =>
+      prevMarkers.map(marker => {
+        if (marker.id === markerId) {
+          return {
+            ...marker,
+            lat: event.latLng.lat(),
+            lng: event.latLng.lng()
+          };
+        }
+        return marker;
+      })
+    );
+  }, []);
+
+  // Handle marker right-click to delete waypoint
+  const handleMarkerRightClick = (markerId) => {
+    const updatedMarkers = markers.filter(marker => marker.id !== markerId);
+    setMarkers(updatedMarkers);
+  };
+
+  // Memoize path to ensure it updates properly
+  const pathCoordinates = useMemo(() => {
+    return markers.map(marker => ({ lat: marker.lat, lng: marker.lng }));
+  }, [markers]);
+
+  // Create and manage polyline using native Google Maps API
+  useEffect(() => {
+    if (!map || markers.length < 2) {
+      // Remove polyline if it exists
+      if (polylineRef.current) {
+        polylineRef.current.setMap(null);
+        polylineRef.current = null;
+      }
+      return;
+    }
+
+    // Remove existing polyline
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null);
+    }
+
+    // Create new polyline with updated path
+    polylineRef.current = new window.google.maps.Polyline({
+      path: pathCoordinates,
+      strokeColor: '#FF0000',
+      strokeOpacity: 0.8,
+      strokeWeight: 3,
+      map: map
+    });
+
+    // Cleanup function
+    return () => {
+      if (polylineRef.current) {
+        polylineRef.current.setMap(null);
+      }
+    };
+  }, [map, pathCoordinates]);
+
   return (
     <div className="w-full h-full">
       <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}>
@@ -54,10 +129,18 @@ const MapView = () => {
           onUnmount={onUnmount}
           onClick={handleMapClick}
         >
-          {markers.map((marker) => (
+          {markers.map((marker, index) => (
             <Marker
               key={marker.id}
               position={{ lat: marker.lat, lng: marker.lng }}
+              label={{
+                text: `${index + 1}`,
+                color: 'white',
+                fontWeight: 'bold'
+              }}
+              draggable={true}
+              onDragEnd={(event) => handleMarkerDrag(marker.id, event)}
+              onRightClick={() => handleMarkerRightClick(marker.id)}
             />
           ))}
         </GoogleMap>
