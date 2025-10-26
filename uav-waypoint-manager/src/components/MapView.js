@@ -1,9 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 
-const MapView = () => {
+const MapView = ({ waypoints, setWaypoints }) => {
   const [map, setMap] = useState(null);
-  const [markers, setMarkers] = useState([]);
   const polylineRef = useRef(null);
 
   // Default center - Anuradhapura, Sri Lanka
@@ -54,14 +53,17 @@ const MapView = () => {
     const newMarker = {
       lat: event.latLng.lat(),
       lng: event.latLng.lng(),
-      id: Date.now()
+      id: Date.now(),
+      altitude: 50,
+      speed: 5,
+      action: 'waypoint'
     };
-    setMarkers([...markers, newMarker]);
+    setWaypoints([...waypoints, newMarker]);
   };
 
   // Handle marker drag to update waypoint position
   const handleMarkerDrag = useCallback((markerId, event) => {
-    setMarkers(prevMarkers =>
+    setWaypoints(prevMarkers =>
       prevMarkers.map(marker => {
         if (marker.id === markerId) {
           return {
@@ -73,22 +75,22 @@ const MapView = () => {
         return marker;
       })
     );
-  }, []);
+  }, [setWaypoints]);
 
   // Handle marker right-click to delete waypoint
   const handleMarkerRightClick = (markerId) => {
-    const updatedMarkers = markers.filter(marker => marker.id !== markerId);
-    setMarkers(updatedMarkers);
+    const updatedMarkers = waypoints.filter(marker => marker.id !== markerId);
+    setWaypoints(updatedMarkers);
   };
 
   // Memoize path to ensure it updates properly
   const pathCoordinates = useMemo(() => {
-    return markers.map(marker => ({ lat: marker.lat, lng: marker.lng }));
-  }, [markers]);
+    return waypoints.map(marker => ({ lat: marker.lat, lng: marker.lng }));
+  }, [waypoints]);
 
   // Create and manage polyline using native Google Maps API
   useEffect(() => {
-    if (!map || markers.length < 2) {
+    if (!map || waypoints.length < 2) {
       // Remove polyline if it exists
       if (polylineRef.current) {
         polylineRef.current.setMap(null);
@@ -129,7 +131,7 @@ const MapView = () => {
           onUnmount={onUnmount}
           onClick={handleMapClick}
         >
-          {markers.map((marker, index) => (
+          {waypoints.map((marker, index) => (
             <Marker
               key={marker.id}
               position={{ lat: marker.lat, lng: marker.lng }}
