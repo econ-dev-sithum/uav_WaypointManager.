@@ -117,9 +117,15 @@ export const MissionProvider = ({ children }) => {
     });
   }, []);
 
-  // Import mission
+  // Import mission (supports both custom format and QGroundControl format)
   const importMission = useCallback((missionData) => {
     try {
+      // Check if it's QGroundControl format
+      if (missionData.mission && missionData.mission.items) {
+        return importQGroundControlMission(missionData);
+      }
+
+      // Otherwise treat as custom format
       if (missionData.waypoints && Array.isArray(missionData.waypoints)) {
         const formattedWaypoints = missionData.waypoints.map((wp, index) => ({
           id: Date.now() + index,
@@ -147,7 +153,113 @@ export const MissionProvider = ({ children }) => {
     }
   }, [missionMetadata.defaultAltitude, missionMetadata.defaultSpeed]);
 
-  // Export mission
+  // Import QGroundControl mission format
+  const importQGroundControlMission = useCallback((missionData) => {
+    try {
+      if (!missionData.mission || !missionData.mission.items) {
+        return false;
+      }
+
+      const items = missionData.mission.items;
+      const formattedWaypoints = [];
+
+      // Get home position from plannedHomePosition or first takeoff
+      let homePosition = missionMetadata.homePosition;
+      if (missionData.mission.plannedHomePosition) {
+        homePosition = {
+          lat: missionData.mission.plannedHomePosition[0],
+          lng: missionData.mission.plannedHomePosition[1],
+          alt: missionData.mission.plannedHomePosition[2],
+        };
+      }
+
+      items.forEach((item, index) => {
+        const command = item.command;
+        let action = 'waypoint';
+        let lat = homePosition.lat;
+        let lng = homePosition.lng;
+        let altitude = item.Altitude || missionMetadata.defaultAltitude;
+        let speed = missionMetadata.defaultSpeed;
+        let holdTime = 0;
+
+        // Map QGC command codes to our action types
+        switch (command) {
+          case 22: // MAV_CMD_NAV_TAKEOFF
+            action = 'takeoff';
+            // Takeoff uses home position coordinates
+            lat = homePosition.lat;
+            lng = homePosition.lng;
+            altitude = item.Altitude || item.params[6] || homePosition.alt;
+            break;
+          case 16: // MAV_CMD_NAV_WAYPOINT
+            action = 'waypoint';
+            // Extract coordinates from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng, [6]=alt
+            if (item.params && item.params[4] !== null && item.params[5] !== null) {
+              lat = item.params[4];
+              lng = item.params[5];
+              altitude = item.params[6] || item.Altitude;
+            }
+            break;
+          case 20: // MAV_CMD_NAV_RETURN_TO_LAUNCH
+            action = 'rtl';
+            // RTL returns to home position
+            lat = homePosition.lat;
+            lng = homePosition.lng;
+            altitude = homePosition.alt;
+            break;
+          case 21: // MAV_CMD_NAV_LAND
+            action = 'land';
+            // Land coordinates from params
+            if (item.params && item.params[4] !== null && item.params[5] !== null) {
+              lat = item.params[4];
+              lng = item.params[5];
+            }
+            altitude = item.Altitude || 0;
+            break;
+          default:
+            return; // Skip unknown commands
+        }
+
+        const waypoint = {
+          id: Date.now() + index,
+          lat: lat,
+          lng: lng,
+          altitude: altitude,
+          speed: speed,
+          action: action,
+          holdTime: holdTime,
+          acceptanceRadius: 5,
+          passRadius: 0,
+          yaw: 0,
+        };
+
+        formattedWaypoints.push(waypoint);
+      });
+
+      if (formattedWaypoints.length > 0) {
+        setWaypoints(formattedWaypoints);
+
+        // Update home position if available
+        if (missionData.mission.plannedHomePosition) {
+          setMissionMetadata(prev => ({
+            ...prev,
+            homePosition: {
+              lat: missionData.mission.plannedHomePosition[0],
+              lng: missionData.mission.plannedHomePosition[1],
+              alt: missionData.mission.plannedHomePosition[2],
+            },
+          }));
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error importing QGroundControl mission:', error);
+      return false;
+    }
+  }, [missionMetadata]);
+
+  // Export mission in custom format
   const exportMission = useCallback(() => {
     return {
       version: '1.0.0',
@@ -166,6 +278,101 @@ export const MissionProvider = ({ children }) => {
         passRadius: wp.passRadius,
         yaw: wp.yaw,
       })),
+    };
+  }, [waypoints, missionMetadata]);
+
+  // Export mission in QGroundControl format
+  const exportQGroundControlMission = useCallback(() => {
+    // Map action types to QGC command codes
+    const getCommand = (action) => {
+      switch (action) {
+        case 'takeoff':
+          return 22; // MAV_CMD_NAV_TAKEOFF
+        case 'waypoint':
+        case 'loiter':
+          return 16; // MAV_CMD_NAV_WAYPOINT
+        case 'land':
+          return 21; // MAV_CMD_NAV_LAND
+        case 'rtl':
+          return 20; // MAV_CMD_NAV_RETURN_TO_LAUNCH
+        default:
+          return 16;
+      }
+    };
+
+    // Build mission items
+    const items = waypoints.map((wp, index) => {
+      const command = getCommand(wp.action);
+      const doJumpId = index + 1;
+
+      if (command === 22) {
+        // Takeoff
+        return {
+          AMSLAltAboveTerrain: null,
+          Altitude: wp.altitude,
+          AltitudeMode: 1,
+          autoContinue: true,
+          command: 22,
+          doJumpId,
+          frame: 3,
+          params: [0, 0, 0, null, 0, 0, wp.altitude],
+          type: 'SimpleItem',
+        };
+      } else if (command === 20) {
+        // Return to Launch
+        return {
+          autoContinue: true,
+          command: 20,
+          doJumpId,
+          frame: 2,
+          params: [0, 0, 0, 0, 0, 0, 0],
+          type: 'SimpleItem',
+        };
+      } else {
+        // Regular waypoint or loiter
+        return {
+          AMSLAltAboveTerrain: null,
+          Altitude: wp.altitude,
+          AltitudeMode: 1,
+          autoContinue: true,
+          command: 16,
+          doJumpId,
+          frame: 3,
+          params: [0, 0, 0, null, wp.lat, wp.lng, wp.altitude],
+          type: 'SimpleItem',
+        };
+      }
+    });
+
+    // Get home position from first waypoint (takeoff)
+    const takeoffPoint = waypoints.find(wp => wp.action === 'takeoff') || waypoints[0];
+    const homePosition = takeoffPoint
+      ? [takeoffPoint.lat, takeoffPoint.lng, takeoffPoint.altitude]
+      : [missionMetadata.homePosition.lat, missionMetadata.homePosition.lng, missionMetadata.homePosition.alt];
+
+    return {
+      fileType: 'Plan',
+      geoFence: {
+        circles: [],
+        polygons: [],
+        version: 2,
+      },
+      groundStation: 'QGroundControl',
+      mission: {
+        cruiseSpeed: missionMetadata.defaultSpeed || 15,
+        firmwareType: 3,
+        globalPlanAltitudeMode: 1,
+        hoverSpeed: 5,
+        items,
+        plannedHomePosition: homePosition,
+        vehicleType: 2,
+        version: 2,
+      },
+      rallyPoints: {
+        points: [],
+        version: 2,
+      },
+      version: 1,
     };
   }, [waypoints, missionMetadata]);
 
@@ -250,6 +457,7 @@ export const MissionProvider = ({ children }) => {
     reorderWaypoints,
     importMission,
     exportMission,
+    exportQGroundControlMission,
     getMissionStats,
     hasTakeoff,
     addReturnToLaunch,

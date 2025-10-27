@@ -35,15 +35,15 @@ function App() {
         <main className="flex-1 overflow-hidden">
           <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-3 p-3">
             {/* Left Sidebar - Mission Browser */}
-            <div className="lg:col-span-3 h-full overflow-y-auto">
+            <div className="hidden lg:block lg:col-span-2 h-full overflow-y-auto">
               <div className="h-full flex flex-col space-y-3">
                 <MissionBrowser />
                 <MissionPanel />
               </div>
             </div>
 
-            {/* Center - Map View */}
-            <div className="lg:col-span-6 order-first lg:order-none h-full">
+            {/* Center - Map View (Larger) */}
+            <div className="lg:col-span-8 order-first lg:order-none h-full">
               <div className="bg-white rounded-lg shadow-lg overflow-hidden h-full">
                 <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-4 py-2 flex items-center justify-between">
                   <h2 className="text-white font-semibold flex items-center text-sm">
@@ -61,7 +61,7 @@ function App() {
             </div>
 
             {/* Right Sidebar - Waypoint List */}
-            <div className="lg:col-span-3 h-full overflow-y-auto">
+            <div className="lg:col-span-2 h-full overflow-y-auto">
               <WaypointPanel />
             </div>
           </div>

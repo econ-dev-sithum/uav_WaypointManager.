@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { useMission } from '../../context/MissionContext';
 
 const MissionPanel = () => {
-  const { waypoints, clearMission, importMission, exportMission, getMissionStats, addReturnToLaunch } = useMission();
+  const { waypoints, clearMission, importMission, exportMission, exportQGroundControlMission, getMissionStats, addReturnToLaunch } = useMission();
   const fileInputRef = useRef(null);
 
   const stats = getMissionStats();
@@ -37,6 +37,21 @@ const MissionPanel = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = `mission_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadQGC = () => {
+    const missionData = exportQGroundControlMission();
+    const blob = new Blob([JSON.stringify(missionData, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mission_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.plan`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -104,24 +119,25 @@ const MissionPanel = () => {
         {/* Actions */}
         <div className="space-y-2">
           <button
-            onClick={handleAddRTL}
-            className="w-full bg-purple-600 text-white py-2.5 px-4 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 font-medium"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <span>Add Return to Home</span>
-          </button>
-
-          <button
-            onClick={handleDownload}
+            onClick={handleDownloadQGC}
             disabled={waypoints.length === 0}
             className="w-full bg-blue-600 text-white py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2 font-medium"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            <span>Download Mission</span>
+            <span>Download Mission (.plan)</span>
+          </button>
+
+          <button
+            onClick={handleDownload}
+            disabled={waypoints.length === 0}
+            className="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2 font-medium"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Download Mission (.json)</span>
           </button>
 
           <label className="w-full bg-green-600 text-white py-2.5 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 cursor-pointer font-medium">
@@ -132,7 +148,7 @@ const MissionPanel = () => {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".json"
+              accept=".json,.plan"
               onChange={handleUpload}
               className="hidden"
             />
