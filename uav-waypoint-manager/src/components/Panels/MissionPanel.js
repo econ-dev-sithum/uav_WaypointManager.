@@ -1,9 +1,11 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useMission } from '../../context/MissionContext';
 
 const MissionPanel = () => {
   const { waypoints, clearMission, importMission, exportMission, exportQGroundControlMission, getMissionStats, addReturnToLaunch } = useMission();
   const fileInputRef = useRef(null);
+  const [showFilenameDialog, setShowFilenameDialog] = useState(false);
+  const [customFilename, setCustomFilename] = useState('mission');
 
   const stats = getMissionStats();
 
@@ -44,6 +46,13 @@ const MissionPanel = () => {
   };
 
   const handleDownloadQGC = () => {
+    setShowFilenameDialog(true);
+  };
+
+  const handleConfirmDownload = () => {
+    const filename = customFilename.trim() || 'mission';
+    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9_\-]/g, '_');
+
     const missionData = exportQGroundControlMission();
     const blob = new Blob([JSON.stringify(missionData, null, 2)], {
       type: 'application/json',
@@ -51,11 +60,14 @@ const MissionPanel = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mission_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.plan`;
+    a.download = `${sanitizedFilename}.plan`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    setShowFilenameDialog(false);
+    setCustomFilename('mission');
   };
 
   const handleUpload = (event) => {
@@ -198,6 +210,52 @@ const MissionPanel = () => {
           </ul>
         </div>
       </div>
+
+      {/* Filename Dialog Modal */}
+      {showFilenameDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Download Mission (.plan)</h3>
+
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Filename
+            </label>
+            <input
+              type="text"
+              value={customFilename}
+              onChange={(e) => setCustomFilename(e.target.value)}
+              placeholder="mission"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleConfirmDownload();
+                }
+              }}
+            />
+            <p className="text-xs text-gray-500 mb-4">
+              Extension .plan will be added automatically
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowFilenameDialog(false);
+                  setCustomFilename('mission');
+                }}
+                className="flex-1 px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDownload}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

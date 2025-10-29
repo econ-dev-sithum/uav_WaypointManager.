@@ -98,10 +98,14 @@ const MapView = () => {
     // Handle different modes
     switch (currentMode) {
       case 'takeoff':
-        const takeoffResult = addWaypoint(lat, lng, 'takeoff');
-        if (!takeoffResult.error) {
-          setSelectedWaypointId(takeoffResult.id);
-          setCurrentMode('waypoint'); // Switch back to waypoint mode
+        // Check if takeoff already exists
+        const hasTakeoff = waypoints.some(wp => wp.action === 'takeoff');
+        if (!hasTakeoff) {
+          const takeoffResult = addWaypoint(lat, lng, 'takeoff');
+          if (!takeoffResult.error) {
+            setSelectedWaypointId(takeoffResult.id);
+            setCurrentMode('waypoint'); // Switch back to waypoint mode
+          }
         }
         break;
 
