@@ -17,7 +17,9 @@ const MapView = ({ waypoints, setWaypoints }) => {
   };
 
   const mapOptions = {
-    zoom: 13,
+    zoom: 22,
+    minZoom: 3,
+    maxZoom: 22, // Maximum zoom level for best detail
     center: defaultCenter,
     mapTypeId: 'satellite', // Using satellite view for UAV operations
     mapTypeControl: true,
@@ -122,7 +124,8 @@ const MapView = ({ waypoints, setWaypoints }) => {
   }, [map, pathCoordinates]);
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
+
       <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}>
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
@@ -152,3 +155,4 @@ const MapView = ({ waypoints, setWaypoints }) => {
 };
 
 export default MapView;
+

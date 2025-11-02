@@ -78,7 +78,7 @@ const WaypointList = ({ waypoints, onWaypointUpdate, onWaypointDelete, onWaypoin
                   <label className="text-xs text-gray-600">Action</label>
                   <select
                     value={waypoint.action || 'waypoint'}
-                    onChange={(e) => {
+              you did th      onChange={(e) => {
                       e.stopPropagation();
                       onWaypointUpdate(waypoint.id, { action: e.target.value });
                     }}

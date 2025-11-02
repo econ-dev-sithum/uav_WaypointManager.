@@ -4,16 +4,29 @@ import { useMission } from '../../context/MissionContext';
 import MapToolbar from './MapToolbar';
 import MapSidebar from './MapSidebar';
 
+// Define libraries outside component to prevent re-renders
+const GOOGLE_MAPS_LIBRARIES = ['geometry'];
+
 const MapView = () => {
   const { waypoints, addWaypoint, updateWaypoint, deleteWaypoint, selectedWaypointId, setSelectedWaypointId, missionMetadata, addReturnToLaunch } = useMission();
   const [map, setMap] = useState(null);
   const [mapType, setMapType] = useState('satellite');
   const [measureMode, setMeasureMode] = useState(false);
   const [currentMode, setCurrentMode] = useState('takeoff');
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [locationError, setLocationError] = useState(null);
+  const [locationRetry, setLocationRetry] = useState(0);
+  const [manualLocationMode, setManualLocationMode] = useState(false);
+  const [useHighAccuracy, setUseHighAccuracy] = useState(true);
   const polylineRef = useRef(null);
   const arrowsRef = useRef([]);
   const measureLineRef = useRef(null);
   const measureMarkersRef = useRef([]);
+  const watchIdRef = useRef(null);
+  const accuracyCircleRef = useRef(null);
+  const previousPositionRef = useRef(null);
+  const calculatedHeadingRef = useRef(0);
 
   const mapContainerStyle = {
     width: '100%',
@@ -22,8 +35,10 @@ const MapView = () => {
   };
 
   const mapOptions = useMemo(() => ({
-    zoom: 13,
-    center: missionMetadata.homePosition,
+    zoom: 22,
+    minZoom: 3,
+    maxZoom: 22,
+    center: currentLocation || missionMetadata.homePosition,
     mapTypeId: mapType,
     mapTypeControl: false,
     streetViewControl: false,
@@ -31,7 +46,7 @@ const MapView = () => {
     zoomControl: false,
     gestureHandling: 'greedy',
     disableDefaultUI: false,
-  }), [missionMetadata.homePosition, mapType]);
+  }), [currentLocation, missionMetadata.homePosition, mapType]);
 
   const onLoad = useCallback((mapInstance) => {
     setMap(mapInstance);
@@ -282,8 +297,8 @@ const MapView = () => {
       strokeColor: '#ffffff',
       strokeWeight: 3,
       scale: scale * 1.8,
-      anchor: new window.google.maps.Point(12, 22),
-      labelOrigin: new window.google.maps.Point(12, 10),
+      anchor: { x: 12, y: 22 },
+      labelOrigin: { x: 12, y: 10 },
     };
   }, []);
 
@@ -342,11 +357,284 @@ const MapView = () => {
     }
   }, [addReturnToLaunch, setSelectedWaypointId]);
 
+  // GPS tracking - Get and watch current location (optimized for laptops)
+  useEffect(() => {
+    // Skip if no geolocation support
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation not supported');
+      setLocationLoading(false);
+      console.error('Geolocation API not available');
+      return;
+    }
+
+    // If manual mode was used, start watch immediately without showing loading
+    if (manualLocationMode) {
+      console.log('📍 Manual location set, continuing GPS tracking in background...');
+      setLocationLoading(false);
+    } else {
+      setLocationLoading(true);
+      if (useHighAccuracy) {
+        console.log('🔍 Trying GPS location (high accuracy)...');
+      } else {
+        console.log('🔍 Trying network location (WiFi/IP based)...');
+      }
+      console.log('💡 Tip: If this fails, use the green button to set location manually');
+    }
+
+    // Options for GPS tracking - use state to toggle between GPS and network
+    const options = {
+      enableHighAccuracy: useHighAccuracy, // Toggle between GPS and network
+      timeout: useHighAccuracy ? 10000 : 8000, // Shorter timeout for GPS, moderate for network
+      maximumAge: 5000 // Accept 5-second cached position
+    };
+
+    // Get initial position
+    if (!manualLocationMode) {
+      console.log('📍 Attempting to get location...');
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('✅ GPS Location acquired!');
+          console.log('📍 RAW GPS DATA:', {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude,
+            altitudeAccuracy: position.coords.altitudeAccuracy,
+            heading: position.coords.heading,
+            speed: position.coords.speed,
+            timestamp: new Date(position.timestamp).toLocaleString()
+          });
+
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            heading: position.coords.heading || 0,
+            speed: position.coords.speed || 0
+          };
+
+          console.log('🗺️ Setting location to:', location.lat, location.lng);
+          console.log('🌐 Google Maps link: https://www.google.com/maps?q=' + location.lat + ',' + location.lng);
+
+          // Store initial position for heading calculation
+          previousPositionRef.current = { lat: location.lat, lng: location.lng };
+
+          setCurrentLocation(location);
+          setLocationLoading(false);
+          setLocationError(null);
+          setManualLocationMode(false); // Override manual location
+
+          // Center map on first GPS lock
+          if (map) {
+            map.panTo({ lat: location.lat, lng: location.lng });
+            map.setZoom(19);
+            console.log('✅ Map centered to GPS location');
+          } else {
+            // If map is not loaded yet, it will use currentLocation from mapOptions
+            console.log('✅ GPS location ready, map will center when loaded');
+          }
+        },
+        (error) => {
+          console.error('❌ Location failed:', error.message);
+
+          // If high accuracy (GPS) times out, automatically try network-based location
+          if (error.code === 3 && useHighAccuracy) {
+            console.log('⚡ GPS timeout - switching to network-based location...');
+            setUseHighAccuracy(false);
+            setLocationRetry(prev => prev + 1);
+            return; // Don't show error, just retry with lower accuracy
+          }
+
+          setLocationLoading(false);
+
+          let errorMsg = 'Location failed';
+          if (error.code === 1) {
+            errorMsg = 'Location permission denied';
+            console.log('📌 Browser blocked location access. Click "Allow" in browser popup.');
+          } else if (error.code === 2) {
+            errorMsg = 'Location unavailable';
+            console.log('📌 Enable Windows Location Services:');
+            console.log('   1. Press Win+I → Privacy & Security → Location');
+            console.log('   2. Turn ON "Location services"');
+            console.log('   3. Make sure WiFi is enabled');
+            console.log('   4. Restart browser after enabling');
+          } else if (error.code === 3) {
+            errorMsg = 'Location timeout';
+            console.log('📌 Location timeout - no GPS or network location available');
+            console.log('   Use GREEN button to set location manually');
+          }
+
+          console.log('');
+          console.log('💡 Click GREEN button to use map center as location');
+          setLocationError(errorMsg);
+        },
+        options
+      );
+    }
+
+    // Always start watching position (even in manual mode) for live updates
+    console.log('👁️ Starting continuous GPS tracking...');
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const newLat = position.coords.latitude;
+        const newLng = position.coords.longitude;
+
+        // Log first update with full details
+        if (!previousPositionRef.current) {
+          console.log('🔄 First GPS update:', {
+            lat: newLat,
+            lng: newLng,
+            accuracy: position.coords.accuracy,
+            heading: position.coords.heading,
+            speed: position.coords.speed
+          });
+          console.log('🌐 Check location: https://www.google.com/maps?q=' + newLat + ',' + newLng);
+        }
+
+        // Calculate heading from movement if we have a previous position
+        let calculatedHeading = calculatedHeadingRef.current;
+
+        if (previousPositionRef.current && window.google?.maps?.geometry) {
+          const prevPos = previousPositionRef.current;
+          const currentPos = new window.google.maps.LatLng(newLat, newLng);
+          const prevLatLng = new window.google.maps.LatLng(prevPos.lat, prevPos.lng);
+
+          // Calculate distance moved
+          const distanceMoved = window.google.maps.geometry.spherical.computeDistanceBetween(
+            prevLatLng,
+            currentPos
+          );
+
+          // Only update heading if moved more than 5 meters (to avoid jitter)
+          if (distanceMoved > 5) {
+            calculatedHeading = window.google.maps.geometry.spherical.computeHeading(
+              prevLatLng,
+              currentPos
+            );
+            calculatedHeadingRef.current = calculatedHeading;
+            console.log('🧭 Heading updated:', calculatedHeading.toFixed(0) + '°', 'Distance:', distanceMoved.toFixed(1) + 'm');
+          }
+        }
+
+        // Use GPS heading if available (from device compass), otherwise use calculated heading
+        const heading = position.coords.heading !== null && position.coords.heading !== undefined
+          ? position.coords.heading
+          : calculatedHeading;
+
+        const location = {
+          lat: newLat,
+          lng: newLng,
+          accuracy: position.coords.accuracy,
+          heading: heading,
+          speed: position.coords.speed || 0
+        };
+
+        // Store current position for next heading calculation
+        previousPositionRef.current = { lat: newLat, lng: newLng };
+
+        setCurrentLocation(location);
+        setLocationLoading(false);
+        setLocationError(null);
+        setManualLocationMode(false); // GPS overrides manual location
+      },
+      (error) => {
+        console.warn('⚠️ GPS watch error:', error.message);
+        // Don't set error state here, just log it
+      },
+      {
+        enableHighAccuracy: useHighAccuracy,
+        timeout: 30000, // Longer timeout for watch
+        maximumAge: 3000 // More frequent updates (3 seconds)
+      }
+    );
+
+    // Cleanup
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        console.log('🛑 GPS tracking stopped');
+      }
+    };
+  }, [map, locationRetry, manualLocationMode, useHighAccuracy]);
+
+  // Handler to navigate to current location
+  const handleNavigateToLocation = useCallback(() => {
+    if (currentLocation && map) {
+      map.panTo(currentLocation);
+      map.setZoom(22);
+    }
+  }, [currentLocation, map]);
+
+  // Handler to retry getting location
+  const handleRetryLocation = useCallback(() => {
+    console.log('Retrying location...');
+    setManualLocationMode(false);
+    setLocationError(null);
+    setLocationLoading(true);
+    setUseHighAccuracy(true); // Start with GPS again
+    setLocationRetry(prev => prev + 1); // Trigger useEffect to re-run
+  }, []);
+
+  // Handler to use map center as current location
+  const handleUseMapCenter = useCallback(() => {
+    if (map) {
+      const center = map.getCenter();
+      const location = {
+        lat: center.lat(),
+        lng: center.lng(),
+        accuracy: 100,
+        heading: 0,
+        speed: 0
+      };
+      setCurrentLocation(location);
+      setManualLocationMode(true);
+      setLocationLoading(false);
+      setLocationError(null);
+      console.log('✅ Using map center as location:', location.lat, location.lng);
+    }
+  }, [map]);
+
+  // Create and update accuracy circle
+  useEffect(() => {
+    if (!map || !currentLocation) {
+      if (accuracyCircleRef.current) {
+        accuracyCircleRef.current.setMap(null);
+        accuracyCircleRef.current = null;
+      }
+      return;
+    }
+
+    // Remove existing circle
+    if (accuracyCircleRef.current) {
+      accuracyCircleRef.current.setMap(null);
+    }
+
+    // Create new accuracy circle
+    accuracyCircleRef.current = new window.google.maps.Circle({
+      center: { lat: currentLocation.lat, lng: currentLocation.lng },
+      radius: currentLocation.accuracy || 10,
+      map: map,
+      fillColor: '#4285F4',
+      fillOpacity: 0.15,
+      strokeColor: '#4285F4',
+      strokeOpacity: 0.3,
+      strokeWeight: 1,
+      clickable: false,
+    });
+
+    return () => {
+      if (accuracyCircleRef.current) {
+        accuracyCircleRef.current.setMap(null);
+      }
+    };
+  }, [map, currentLocation]);
+
   return (
     <div className="w-full h-full relative">
       <LoadScript
         googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
-        libraries={['geometry']}
+        libraries={GOOGLE_MAPS_LIBRARIES}
       >
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
@@ -355,6 +643,25 @@ const MapView = () => {
           onUnmount={onUnmount}
           onClick={handleMapClick}
         >
+          {/* Current location marker - Blue arrow that rotates with heading */}
+          {currentLocation && window.google?.maps && (
+            <Marker
+              position={{ lat: currentLocation.lat, lng: currentLocation.lng }}
+              icon={{
+                path: 'M 0,-24 L 8,0 L 0,-8 L -8,0 Z',
+                scale: 1.5,
+                fillColor: '#4285F4',
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+                rotation: currentLocation.heading !== null ? currentLocation.heading : 0,
+                anchor: { x: 0, y: 0 }
+              }}
+              title={`My Location\nLat: ${currentLocation.lat.toFixed(6)}\nLng: ${currentLocation.lng.toFixed(6)}\nHeading: ${currentLocation.heading.toFixed(0)}°\nSpeed: ${(currentLocation.speed * 3.6).toFixed(1)} km/h\nAccuracy: ${currentLocation.accuracy.toFixed(0)}m`}
+              zIndex={1000}
+            />
+          )}
+
           {waypoints
             .filter(waypoint => waypoint.action !== 'rtl') // Hide RTL marker but keep in waypoints for path
             .map((waypoint, index) => {
@@ -402,6 +709,12 @@ const MapView = () => {
           onToggleLayer={handleToggleLayer}
           onToggleMeasure={handleToggleMeasure}
           mapType={mapType}
+          currentLocation={currentLocation}
+          locationLoading={locationLoading}
+          locationError={locationError}
+          onNavigateToLocation={handleNavigateToLocation}
+          onRetryLocation={handleRetryLocation}
+          onUseMapCenter={handleUseMapCenter}
         />
       </LoadScript>
     </div>
