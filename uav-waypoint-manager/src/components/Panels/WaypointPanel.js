@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useMission } from "../../context/MissionContext";
 
 const WaypointPanel = () => {
@@ -10,6 +10,30 @@ const WaypointPanel = () => {
     setSelectedWaypointId,
   } = useMission();
   const [expandedWaypointId, setExpandedWaypointId] = useState(null);
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1, lng1, lat2, lng2) => {
+    const R = 6371000; // Earth radius in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  };
+
+  // Calculate total mission distance
+  const totalDistance = useMemo(() => {
+    if (waypoints.length < 2) return 0;
+    let total = 0;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const wp1 = waypoints[i];
+      const wp2 = waypoints[i + 1];
+      total += calculateDistance(wp1.lat, wp1.lng, wp2.lat, wp2.lng);
+    }
+    return total;
+  }, [waypoints]);
 
   if (waypoints.length === 0) {
     return (
@@ -60,7 +84,7 @@ const WaypointPanel = () => {
   return (
     <div className="bg-white rounded-lg shadow-md">
       <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold flex items-center">
             <svg
               className="w-5 h-5 mr-2"
@@ -87,10 +111,28 @@ const WaypointPanel = () => {
             {waypoints.length} {waypoints.length === 1 ? "point" : "points"}
           </span>
         </div>
+        {waypoints.length > 1 && (
+          <div className="text-sm text-blue-600 font-semibold flex items-center">
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            Total: {totalDistance.toFixed(1)}m
+          </div>
+        )}
       </div>
 
       <div className="overflow-y-auto max-h-96 divide-y divide-gray-200">
         {waypoints.map((waypoint, index) => {
+          // Calculate distance to next waypoint
+          const distanceToNext = index < waypoints.length - 1
+            ? calculateDistance(
+                waypoint.lat,
+                waypoint.lng,
+                waypoints[index + 1].lat,
+                waypoints[index + 1].lng
+              )
+            : null;
+
           // Calculate proper waypoint number (excluding takeoff)
           const waypointsBefore = waypoints.slice(
             0,
@@ -215,25 +257,41 @@ const WaypointPanel = () => {
                 <div className="px-4 pb-4 border-t border-gray-200 space-y-2">
                 {/* Takeoff - Only Altitude */}
                 {waypoint.action === "takeoff" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-600 block mb-1">
-                        Altitude (m)
-                      </label>
-                      <input
-                        type="number"
-                        value={waypoint.altitude}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          updateWaypoint(waypoint.id, {
-                            altitude: parseFloat(e.target.value) || 0,
-                          });
-                        }}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Altitude (m)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.altitude}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              altitude: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      {distanceToNext !== null && (
+                        <div>
+                          <label className="text-xs text-gray-600 block mb-1">
+                            Distance to Next (m)
+                          </label>
+                          <input
+                            type="text"
+                            value={distanceToNext.toFixed(1)}
+                            readOnly
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50 text-gray-700 font-semibold"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </>
                 )}
 
                 {/* Regular Waypoint - Altitude, Speed, Yaw, Hold Time */}
@@ -314,6 +372,23 @@ const WaypointPanel = () => {
                         />
                       </div>
                     </div>
+
+                    {distanceToNext !== null && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-600 block mb-1">
+                            Distance to Next (m)
+                          </label>
+                          <input
+                            type="text"
+                            value={distanceToNext.toFixed(1)}
+                            readOnly
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50 text-gray-700 font-semibold"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -375,6 +450,20 @@ const WaypointPanel = () => {
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
+                      {distanceToNext !== null && (
+                        <div>
+                          <label className="text-xs text-gray-600 block mb-1">
+                            Distance to Next (m)
+                          </label>
+                          <input
+                            type="text"
+                            value={distanceToNext.toFixed(1)}
+                            readOnly
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50 text-gray-700 font-semibold"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

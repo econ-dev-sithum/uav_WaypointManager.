@@ -17,7 +17,7 @@ export const MissionProvider = ({ children }) => {
     name: 'Untitled Mission',
     description: '',
     homePosition: { lat: 8.3114, lng: 80.4037, alt: 0 },
-    defaultAltitude: 50,
+    defaultAltitude: 10,
     defaultSpeed: 5,
   });
 

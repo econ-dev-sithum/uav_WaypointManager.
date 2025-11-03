@@ -10,7 +10,7 @@ const MissionControl = ({ waypoints, onClearMission, onUploadMission, onDownload
         index: index + 1,
         latitude: wp.lat,
         longitude: wp.lng,
-        altitude: wp.altitude || 50,
+        altitude: wp.altitude || 10,
         speed: wp.speed || 5,
         action: wp.action || 'waypoint'
       }))

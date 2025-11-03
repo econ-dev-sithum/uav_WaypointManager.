@@ -27,6 +27,7 @@ const MapView = () => {
   const accuracyCircleRef = useRef(null);
   const previousPositionRef = useRef(null);
   const calculatedHeadingRef = useRef(0);
+  const gridOverlayRef = useRef(null);
 
   const mapContainerStyle = {
     width: '100%',
@@ -37,7 +38,7 @@ const MapView = () => {
   const mapOptions = useMemo(() => ({
     zoom: 22,
     minZoom: 3,
-    maxZoom: 22,
+    maxZoom: 25, // Push beyond standard limits
     center: currentLocation || missionMetadata.homePosition,
     mapTypeId: mapType,
     mapTypeControl: false,
@@ -46,6 +47,15 @@ const MapView = () => {
     zoomControl: false,
     gestureHandling: 'greedy',
     disableDefaultUI: false,
+    scaleControl: true,
+    scaleControlOptions: {
+      position: window.google?.maps?.ControlPosition?.BOTTOM_LEFT || 6,
+    },
+    tilt: 0, // Enable tilt capability (0-45 degrees)
+    rotateControl: true,
+    rotateControlOptions: {
+      position: window.google?.maps?.ControlPosition?.LEFT_CENTER || 4,
+    },
   }), [currentLocation, missionMetadata.homePosition, mapType]);
 
   const onLoad = useCallback((mapInstance) => {
@@ -148,7 +158,7 @@ const MapView = () => {
       default:
         break;
     }
-  }, [addWaypoint, setSelectedWaypointId, measureMode, map, currentMode, addReturnToLaunch]);
+  }, [addWaypoint, setSelectedWaypointId, measureMode, map, currentMode, waypoints]);
 
   // Handle marker drag
   const handleMarkerDrag = useCallback((waypointId, event) => {
@@ -302,16 +312,22 @@ const MapView = () => {
     };
   }, []);
 
-  // Toolbar handlers
+  // Toolbar handlers with ultra-zoom support
   const handleZoomIn = useCallback(() => {
     if (map) {
-      map.setZoom(map.getZoom() + 1);
+      const currentZoom = map.getZoom();
+      const newZoom = Math.min(currentZoom + 1, 25); // Max zoom 25
+      map.setZoom(newZoom);
+      console.log(`🔍 Zoom level: ${newZoom} (max: 25)`);
     }
   }, [map]);
 
   const handleZoomOut = useCallback(() => {
     if (map) {
-      map.setZoom(map.getZoom() - 1);
+      const currentZoom = map.getZoom();
+      const newZoom = Math.max(currentZoom - 1, 3); // Min zoom 3
+      map.setZoom(newZoom);
+      console.log(`🔍 Zoom level: ${newZoom}`);
     }
   }, [map]);
 
@@ -344,11 +360,20 @@ const MapView = () => {
         bounds.extend({ lat: wp.lat, lng: wp.lng });
       });
       map.fitBounds(bounds);
+      // Add some padding after fitBounds, but allow ultra-high zoom
+      setTimeout(() => {
+        const currentZoom = map.getZoom();
+        if (currentZoom > 25) {
+          map.setZoom(25); // Ultra-high zoom for precision
+        }
+      }, 100);
     } else if (map) {
-      map.setCenter(missionMetadata.homePosition);
-      map.setZoom(13);
+      // Center on current location or home position
+      const centerPoint = currentLocation || missionMetadata.homePosition;
+      map.setCenter(centerPoint);
+      map.setZoom(22);
     }
-  }, [map, waypoints, missionMetadata.homePosition]);
+  }, [map, waypoints, currentLocation, missionMetadata.homePosition]);
 
   const handleAddRTL = useCallback(() => {
     const result = addReturnToLaunch();
@@ -428,7 +453,7 @@ const MapView = () => {
           // Center map on first GPS lock
           if (map) {
             map.panTo({ lat: location.lat, lng: location.lng });
-            map.setZoom(19);
+            map.setZoom(24);
             console.log('✅ Map centered to GPS location');
           } else {
             // If map is not loaded yet, it will use currentLocation from mapOptions
@@ -562,7 +587,7 @@ const MapView = () => {
   const handleNavigateToLocation = useCallback(() => {
     if (currentLocation && map) {
       map.panTo(currentLocation);
-      map.setZoom(22);
+      map.setZoom(25); // Maximum zoom
     }
   }, [currentLocation, map]);
 
@@ -626,6 +651,42 @@ const MapView = () => {
     return () => {
       if (accuracyCircleRef.current) {
         accuracyCircleRef.current.setMap(null);
+      }
+    };
+  }, [map, currentLocation]);
+
+  // Add 5-meter reference circle at current location for scale
+  useEffect(() => {
+    if (!map || !currentLocation) {
+      if (gridOverlayRef.current) {
+        gridOverlayRef.current.setMap(null);
+        gridOverlayRef.current = null;
+      }
+      return;
+    }
+
+    // Remove existing grid overlay
+    if (gridOverlayRef.current) {
+      gridOverlayRef.current.setMap(null);
+    }
+
+    // Create 5-meter reference circle around current location
+    gridOverlayRef.current = new window.google.maps.Circle({
+      center: { lat: currentLocation.lat, lng: currentLocation.lng },
+      radius: 5, // 5 meters
+      map: map,
+      fillColor: '#00ff00',
+      fillOpacity: 0.05,
+      strokeColor: '#00ff00',
+      strokeOpacity: 0.4,
+      strokeWeight: 2,
+      clickable: false,
+      zIndex: 1,
+    });
+
+    return () => {
+      if (gridOverlayRef.current) {
+        gridOverlayRef.current.setMap(null);
       }
     };
   }, [map, currentLocation]);
