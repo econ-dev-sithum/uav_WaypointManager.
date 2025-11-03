@@ -237,7 +237,7 @@ function App() {
                       </svg>
                       Map View
                     </h2>
-                    <span className="text-xs text-gray-300">Anuradhapura, Sri Lanka</span>
+                    <span className="text-xs text-gray-300">Home: 7.028095°, 79.909942°</span>
                   </div>
                   <div className="h-[calc(100%-40px)]">
                     <MapView onLocationUpdate={(handler) => {mapUpdateHandlerRef.current = handler;}} />

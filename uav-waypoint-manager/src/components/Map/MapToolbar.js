@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const MapToolbar = ({ onZoomIn, onZoomOut, onToggleLayer, onToggleMeasure, mapType, currentLocation, locationLoading, locationError, onNavigateToLocation, onRetryLocation, onUseMapCenter }) => {
+const MapToolbar = ({ onZoomIn, onZoomOut, onToggleLayer, onToggleMeasure, mapType, currentLocation, locationLoading, locationError, onNavigateToLocation, onRetryLocation, onUseMapCenter, onNavigateToHome }) => {
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
 
@@ -131,16 +131,18 @@ const MapToolbar = ({ onZoomIn, onZoomOut, onToggleLayer, onToggleMeasure, mapTy
         </svg>
       </button>
 
-      {/* Home/Reset View */}
-      <button
-        onClick={() => window.location.reload()}
-        className="w-10 h-10 bg-white rounded-lg shadow-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
-        title="Reset View"
-      >
-        <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      </button>
+      {/* Go to Home Position */}
+      {onNavigateToHome && (
+        <button
+          onClick={onNavigateToHome}
+          className="w-10 h-10 bg-white rounded-lg shadow-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+          title="Go to Home Position"
+        >
+          <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        </button>
+      )}
 
       {/* Navigate to Current Location */}
       {locationLoading && (

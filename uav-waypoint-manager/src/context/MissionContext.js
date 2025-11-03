@@ -16,7 +16,7 @@ export const MissionProvider = ({ children }) => {
   const [missionMetadata, setMissionMetadata] = useState({
     name: 'Untitled Mission',
     description: '',
-    homePosition: { lat: 8.3114, lng: 80.4037, alt: 0 },
+    homePosition: { lat: 7.028095, lng: 79.909942, alt: 0 },
     defaultAltitude: 10,
     defaultSpeed: 5,
   });
@@ -306,7 +306,7 @@ export const MissionProvider = ({ children }) => {
       const doJumpId = index + 1;
 
       if (command === 22) {
-        // Takeoff
+        // Takeoff - include lat/lng coordinates
         return {
           AMSLAltAboveTerrain: null,
           Altitude: wp.altitude,
@@ -315,7 +315,7 @@ export const MissionProvider = ({ children }) => {
           command: 22,
           doJumpId,
           frame: 3,
-          params: [0, 0, 0, null, 0, 0, wp.altitude],
+          params: [0, 0, 0, null, wp.lat, wp.lng, wp.altitude],
           type: 'SimpleItem',
         };
       } else if (command === 20) {
