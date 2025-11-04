@@ -306,7 +306,7 @@ export const MissionProvider = ({ children }) => {
       const doJumpId = index + 1;
 
       if (command === 22) {
-        // Takeoff - include lat/lng coordinates
+        // Takeoff - include lat/lng and hold time
         return {
           AMSLAltAboveTerrain: null,
           Altitude: wp.altitude,
@@ -315,7 +315,7 @@ export const MissionProvider = ({ children }) => {
           command: 22,
           doJumpId,
           frame: 3,
-          params: [0, 0, 0, null, wp.lat, wp.lng, wp.altitude],
+          params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wp.yaw || 0, wp.lat, wp.lng, wp.altitude],
           type: 'SimpleItem',
         };
       } else if (command === 20) {
@@ -329,7 +329,7 @@ export const MissionProvider = ({ children }) => {
           type: 'SimpleItem',
         };
       } else {
-        // Regular waypoint or loiter
+        // Regular waypoint or loiter - include hold time, acceptance radius, pass radius, and yaw
         return {
           AMSLAltAboveTerrain: null,
           Altitude: wp.altitude,
@@ -338,7 +338,7 @@ export const MissionProvider = ({ children }) => {
           command: 16,
           doJumpId,
           frame: 3,
-          params: [0, 0, 0, null, wp.lat, wp.lng, wp.altitude],
+          params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wp.yaw || 0, wp.lat, wp.lng, wp.altitude],
           type: 'SimpleItem',
         };
       }
