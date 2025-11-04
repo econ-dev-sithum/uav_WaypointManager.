@@ -274,6 +274,8 @@ const WaypointPanel = () => {
                           }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
                         />
                       </div>
                       {distanceToNext !== null && (
@@ -313,6 +315,8 @@ const WaypointPanel = () => {
                           }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
                         />
                       </div>
                       <div>
@@ -330,6 +334,8 @@ const WaypointPanel = () => {
                           }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
                         />
                       </div>
                     </div>
@@ -352,6 +358,7 @@ const WaypointPanel = () => {
                           onClick={(e) => e.stopPropagation()}
                           min="0"
                           max="360"
+                          step="1"
                         />
                       </div>
                       <div>
@@ -369,6 +376,8 @@ const WaypointPanel = () => {
                           }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
+                          step="1"
+                          min="0"
                         />
                       </div>
                     </div>
@@ -411,6 +420,8 @@ const WaypointPanel = () => {
                           }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
                         />
                       </div>
                       <div>
@@ -428,6 +439,8 @@ const WaypointPanel = () => {
                           }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
                         />
                       </div>
                     </div>
@@ -448,6 +461,8 @@ const WaypointPanel = () => {
                           }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
+                          step="1"
+                          min="0"
                         />
                       </div>
                       {distanceToNext !== null && (
@@ -486,6 +501,8 @@ const WaypointPanel = () => {
                         }}
                         className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         onClick={(e) => e.stopPropagation()}
+                        step="0.1"
+                        min="0"
                       />
                     </div>
                   </div>

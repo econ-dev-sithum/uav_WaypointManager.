@@ -181,19 +181,41 @@ export const MissionProvider = ({ children }) => {
         let altitude = item.Altitude || missionMetadata.defaultAltitude;
         let speed = missionMetadata.defaultSpeed;
         let holdTime = 0;
+        let acceptanceRadius = 5;
+        let passRadius = 0;
+        let yaw = 0;
 
         // Map QGC command codes to our action types
         switch (command) {
           case 22: // MAV_CMD_NAV_TAKEOFF
             action = 'takeoff';
-            // Takeoff uses home position coordinates
-            lat = homePosition.lat;
-            lng = homePosition.lng;
+            // Takeoff coordinates - try params first, fall back to home position
+            if (item.params && item.params[4] !== null && item.params[5] !== null) {
+              lat = item.params[4];
+              lng = item.params[5];
+            } else {
+              lat = homePosition.lat;
+              lng = homePosition.lng;
+            }
             altitude = item.Altitude || item.params[6] || homePosition.alt;
+            // Extract parameters from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng, [6]=alt
+            if (item.params) {
+              holdTime = item.params[0] || 0;
+              acceptanceRadius = item.params[1] || 5;
+              passRadius = item.params[2] || 0;
+              yaw = item.params[3] || 0;
+            }
             break;
           case 16: // MAV_CMD_NAV_WAYPOINT
             action = 'waypoint';
-            // Extract coordinates from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng, [6]=alt
+            // Extract parameters from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng, [6]=alt
+            if (item.params) {
+              holdTime = item.params[0] || 0;
+              acceptanceRadius = item.params[1] || 5;
+              passRadius = item.params[2] || 0;
+              yaw = item.params[3] || 0;
+            }
+            // Extract coordinates if available
             if (item.params && item.params[4] !== null && item.params[5] !== null) {
               lat = item.params[4];
               lng = item.params[5];
@@ -209,7 +231,14 @@ export const MissionProvider = ({ children }) => {
             break;
           case 21: // MAV_CMD_NAV_LAND
             action = 'land';
-            // Land coordinates from params
+            // Extract parameters from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng
+            if (item.params) {
+              holdTime = item.params[0] || 0;
+              acceptanceRadius = item.params[1] || 5;
+              passRadius = item.params[2] || 0;
+              yaw = item.params[3] || 0;
+            }
+            // Extract coordinates if available
             if (item.params && item.params[4] !== null && item.params[5] !== null) {
               lat = item.params[4];
               lng = item.params[5];
@@ -228,9 +257,9 @@ export const MissionProvider = ({ children }) => {
           speed: speed,
           action: action,
           holdTime: holdTime,
-          acceptanceRadius: 5,
-          passRadius: 0,
-          yaw: 0,
+          acceptanceRadius: acceptanceRadius,
+          passRadius: passRadius,
+          yaw: yaw,
         };
 
         formattedWaypoints.push(waypoint);
