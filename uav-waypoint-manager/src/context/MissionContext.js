@@ -179,7 +179,7 @@ export const MissionProvider = ({ children }) => {
         let lat = homePosition.lat;
         let lng = homePosition.lng;
         let altitude = item.Altitude || missionMetadata.defaultAltitude;
-        let speed = missionMetadata.defaultSpeed;
+        let speed = item.speed || missionMetadata.defaultSpeed;
         let holdTime = 0;
         let acceptanceRadius = 5;
         let passRadius = 0;
@@ -335,7 +335,7 @@ export const MissionProvider = ({ children }) => {
       const doJumpId = index + 1;
 
       if (command === 22) {
-        // Takeoff - include lat/lng and hold time
+        // Takeoff - include lat/lng, hold time, and speed
         return {
           AMSLAltAboveTerrain: null,
           Altitude: wp.altitude,
@@ -345,6 +345,7 @@ export const MissionProvider = ({ children }) => {
           doJumpId,
           frame: 3,
           params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wp.yaw || 0, wp.lat, wp.lng, wp.altitude],
+          speed: wp.speed || missionMetadata.defaultSpeed,
           type: 'SimpleItem',
         };
       } else if (command === 20) {
@@ -355,10 +356,11 @@ export const MissionProvider = ({ children }) => {
           doJumpId,
           frame: 2,
           params: [0, 0, 0, 0, 0, 0, 0],
+          speed: missionMetadata.defaultSpeed,
           type: 'SimpleItem',
         };
       } else {
-        // Regular waypoint or loiter - include hold time, acceptance radius, pass radius, and yaw
+        // Regular waypoint or loiter - include hold time, acceptance radius, pass radius, yaw, and speed
         return {
           AMSLAltAboveTerrain: null,
           Altitude: wp.altitude,
@@ -368,6 +370,8 @@ export const MissionProvider = ({ children }) => {
           doJumpId,
           frame: 3,
           params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wp.yaw || 0, wp.lat, wp.lng, wp.altitude],
+          speed: wp.speed || missionMetadata.defaultSpeed,
+
           type: 'SimpleItem',
         };
       }
