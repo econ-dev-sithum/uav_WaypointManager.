@@ -173,13 +173,17 @@ export const MissionProvider = ({ children }) => {
         };
       }
 
+      // Track current speed for applying DO_CHANGE_SPEED commands
+      let currentSpeed = missionData.mission.cruiseSpeed || missionMetadata.defaultSpeed;
+      let lastWaypointIndex = -1; // Track the last waypoint added for DO_SET_YAW
+
       items.forEach((item, index) => {
         const command = item.command;
         let action = 'waypoint';
         let lat = homePosition.lat;
         let lng = homePosition.lng;
         let altitude = item.Altitude || missionMetadata.defaultAltitude;
-        let speed = item.speed || missionMetadata.defaultSpeed;
+        let speed = currentSpeed; // Use current tracked speed
         let holdTime = 0;
         let acceptanceRadius = 5;
         let passRadius = 0;
@@ -205,6 +209,7 @@ export const MissionProvider = ({ children }) => {
               passRadius = item.params[2] || 0;
               yaw = item.params[3] || 0;
             }
+            speed = currentSpeed; // Takeoff uses current speed
             break;
           case 16: // MAV_CMD_NAV_WAYPOINT
             action = 'waypoint';
@@ -221,6 +226,7 @@ export const MissionProvider = ({ children }) => {
               lng = item.params[5];
               altitude = item.params[6] || item.Altitude;
             }
+            speed = currentSpeed; // Waypoint uses current speed
             break;
           case 20: // MAV_CMD_NAV_RETURN_TO_LAUNCH
             action = 'rtl';
@@ -228,6 +234,7 @@ export const MissionProvider = ({ children }) => {
             lat = homePosition.lat;
             lng = homePosition.lng;
             altitude = homePosition.alt;
+            speed = currentSpeed; // RTL uses current speed
             break;
           case 21: // MAV_CMD_NAV_LAND
             action = 'land';
@@ -244,7 +251,30 @@ export const MissionProvider = ({ children }) => {
               lng = item.params[5];
             }
             altitude = item.Altitude || 0;
+            speed = currentSpeed; // Land uses current speed
             break;
+          case 178: // MAV_CMD_DO_CHANGE_SPEED
+            // Update current speed for subsequent waypoints
+            // params[0] = speed type (0=airspeed, 1=groundspeed)
+            // params[1] = speed value in m/s
+            // params[2] = throttle (-1 or percentage)
+            if (item.params && item.params[1] !== null && item.params[1] !== undefined) {
+              currentSpeed = item.params[1];
+            }
+            return; // Don't add this as a waypoint, just track the speed
+          case 115: // MAV_CMD_DO_SET_YAW
+            // Apply yaw rotation to the last waypoint
+            // params[0] = target yaw angle (final heading 0-360)
+            // params[1] = yaw rate (degrees per second)
+            // params[2] = number of rotations before reaching final heading
+            if (lastWaypointIndex >= 0 && item.params) {
+              const finalHeading = item.params[0] || 0;
+              const totalRotations = item.params[2] || 0;
+              // Convert to total yaw value: (rotations * 360) + final heading
+              const totalYaw = (totalRotations * 360) + finalHeading;
+              formattedWaypoints[lastWaypointIndex].yaw = totalYaw;
+            }
+            return; // Don't add this as a waypoint, just modify the last one
           default:
             return; // Skip unknown commands
         }
@@ -263,6 +293,7 @@ export const MissionProvider = ({ children }) => {
         };
 
         formattedWaypoints.push(waypoint);
+        lastWaypointIndex = formattedWaypoints.length - 1; // Track last waypoint for DO_SET_YAW
       });
 
       if (formattedWaypoints.length > 0) {
@@ -329,51 +360,117 @@ export const MissionProvider = ({ children }) => {
       }
     };
 
-    // Build mission items
-    const items = waypoints.map((wp, index) => {
+    // Build mission items with DO_CHANGE_SPEED commands when speed changes
+    const items = [];
+    let itemIndex = 1;
+    const cruiseSpeed = missionMetadata.defaultSpeed || 15;
+    let lastWpSpeed = cruiseSpeed;
+
+    waypoints.forEach((wp, wpIndex) => {
       const command = getCommand(wp.action);
-      const doJumpId = index + 1;
+      const wpSpeed = wp.speed || cruiseSpeed;
+      const wpYaw = wp.yaw || 0;
+
+      // Add DO_CHANGE_SPEED command BEFORE waypoint if speed differs from last speed
+      if (wpSpeed !== lastWpSpeed && command !== 20) {
+        items.push({
+          autoContinue: true,
+          command: 178, // MAV_CMD_DO_CHANGE_SPEED
+          doJumpId: itemIndex++,
+          frame: 2,
+          params: [
+            1,        // speed type: 1=groundspeed
+            wpSpeed,  // speed in m/s
+            -1,       // throttle: -1 means no change
+            0,        // relative: 0=absolute speed
+            0,
+            0,
+            0
+          ],
+          type: 'SimpleItem',
+        });
+        lastWpSpeed = wpSpeed;
+      }
 
       if (command === 22) {
-        // Takeoff - include lat/lng, hold time, and speed
-        return {
+        // Takeoff - include lat/lng, hold time, yaw
+        items.push({
           AMSLAltAboveTerrain: null,
           Altitude: wp.altitude,
           AltitudeMode: 1,
           autoContinue: true,
           command: 22,
-          doJumpId,
+          doJumpId: itemIndex++,
           frame: 3,
-          params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wp.yaw || 0, wp.lat, wp.lng, wp.altitude],
-          speed: wp.speed || missionMetadata.defaultSpeed,
+          params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wpYaw, wp.lat, wp.lng, wp.altitude],
           type: 'SimpleItem',
-        };
+        });
       } else if (command === 20) {
-        // Return to Launch
-        return {
+        // Return to Launch - add speed change before RTL if needed
+        if (wpSpeed !== lastWpSpeed) {
+          items.push({
+            autoContinue: true,
+            command: 178, // MAV_CMD_DO_CHANGE_SPEED
+            doJumpId: itemIndex++,
+            frame: 2,
+            params: [
+              1,        // speed type: 1=groundspeed
+              wpSpeed,  // speed in m/s
+              -1,       // throttle: -1 means no change
+              0,        // relative: 0=absolute speed
+              0,
+              0,
+              0
+            ],
+            type: 'SimpleItem',
+          });
+          lastWpSpeed = wpSpeed;
+        }
+        items.push({
           autoContinue: true,
           command: 20,
-          doJumpId,
+          doJumpId: itemIndex++,
           frame: 2,
           params: [0, 0, 0, 0, 0, 0, 0],
-          speed: missionMetadata.defaultSpeed,
           type: 'SimpleItem',
-        };
+        });
       } else {
-        // Regular waypoint or loiter - include hold time, acceptance radius, pass radius, yaw, and speed
-        return {
+        // Regular waypoint or loiter - include hold time, acceptance radius, pass radius, yaw
+        items.push({
           AMSLAltAboveTerrain: null,
           Altitude: wp.altitude,
           AltitudeMode: 1,
           autoContinue: true,
           command: 16,
-          doJumpId,
+          doJumpId: itemIndex++,
           frame: 3,
-          params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wp.yaw || 0, wp.lat, wp.lng, wp.altitude],
-          speed: wp.speed || missionMetadata.defaultSpeed,
-
+          params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wpYaw % 360, wp.lat, wp.lng, wp.altitude],
           type: 'SimpleItem',
-        };
+        });
+
+        // Add DO_SET_YAW command AFTER waypoint if yaw is rotation (>= 360)
+        if (wpYaw >= 360) {
+          const totalRotations = Math.floor(wpYaw / 360);
+          const yawRate = 30; // degrees per second
+          const finalHeading = wpYaw % 360;
+
+          items.push({
+            autoContinue: true,
+            command: 115, // MAV_CMD_DO_SET_YAW
+            doJumpId: itemIndex++,
+            frame: 1,
+            params: [
+              finalHeading,     // [0] = target yaw angle (final heading in degrees 0-360)
+              yawRate,          // [1] = yaw rate (degrees per second, 0=default)
+              totalRotations,   // [2] = direction (positive = CW from north, rotations = how many times)
+              0,                // [3] = reserved
+              0,
+              0,
+              0
+            ],
+            type: 'SimpleItem',
+          });
+        }
       }
     });
 
