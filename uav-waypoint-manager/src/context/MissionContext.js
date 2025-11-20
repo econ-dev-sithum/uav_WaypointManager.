@@ -204,10 +204,10 @@ export const MissionProvider = ({ children }) => {
             altitude = item.Altitude || item.params[6] || homePosition.alt;
             // Extract parameters from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng, [6]=alt
             if (item.params) {
-              holdTime = item.params[0] || 0;
-              acceptanceRadius = item.params[1] || 5;
-              passRadius = item.params[2] || 0;
-              yaw = item.params[3] || 0;
+              holdTime = item.params[0] !== null && item.params[0] !== undefined ? item.params[0] : 0;
+              acceptanceRadius = item.params[1] !== null && item.params[1] !== undefined ? item.params[1] : 5;
+              passRadius = item.params[2] !== null && item.params[2] !== undefined ? item.params[2] : 0;
+              yaw = item.params[3] !== null && item.params[3] !== undefined ? item.params[3] : 0;
             }
             speed = currentSpeed; // Takeoff uses current speed
             break;
@@ -215,10 +215,10 @@ export const MissionProvider = ({ children }) => {
             action = 'waypoint';
             // Extract parameters from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng, [6]=alt
             if (item.params) {
-              holdTime = item.params[0] || 0;
-              acceptanceRadius = item.params[1] || 5;
-              passRadius = item.params[2] || 0;
-              yaw = item.params[3] || 0;
+              holdTime = item.params[0] !== null && item.params[0] !== undefined ? item.params[0] : 0;
+              acceptanceRadius = item.params[1] !== null && item.params[1] !== undefined ? item.params[1] : 5;
+              passRadius = item.params[2] !== null && item.params[2] !== undefined ? item.params[2] : 0;
+              yaw = item.params[3] !== null && item.params[3] !== undefined ? item.params[3] : 0;
             }
             // Extract coordinates if available
             if (item.params && item.params[4] !== null && item.params[5] !== null) {
@@ -240,10 +240,10 @@ export const MissionProvider = ({ children }) => {
             action = 'land';
             // Extract parameters from params array [0]=hold, [1]=accept_rad, [2]=pass_rad, [3]=yaw, [4]=lat, [5]=lng
             if (item.params) {
-              holdTime = item.params[0] || 0;
-              acceptanceRadius = item.params[1] || 5;
-              passRadius = item.params[2] || 0;
-              yaw = item.params[3] || 0;
+              holdTime = item.params[0] !== null && item.params[0] !== undefined ? item.params[0] : 0;
+              acceptanceRadius = item.params[1] !== null && item.params[1] !== undefined ? item.params[1] : 5;
+              passRadius = item.params[2] !== null && item.params[2] !== undefined ? item.params[2] : 0;
+              yaw = item.params[3] !== null && item.params[3] !== undefined ? item.params[3] : 0;
             }
             // Extract coordinates if available
             if (item.params && item.params[4] !== null && item.params[5] !== null) {
@@ -268,8 +268,8 @@ export const MissionProvider = ({ children }) => {
             // params[1] = yaw rate (degrees per second)
             // params[2] = number of rotations before reaching final heading
             if (lastWaypointIndex >= 0 && item.params) {
-              const finalHeading = item.params[0] || 0;
-              const totalRotations = item.params[2] || 0;
+              const finalHeading = item.params[0] !== null && item.params[0] !== undefined ? item.params[0] : 0;
+              const totalRotations = item.params[2] !== null && item.params[2] !== undefined ? item.params[2] : 0;
               // Convert to total yaw value: (rotations * 360) + final heading
               const totalYaw = (totalRotations * 360) + finalHeading;
               formattedWaypoints[lastWaypointIndex].yaw = totalYaw;
@@ -395,7 +395,7 @@ export const MissionProvider = ({ children }) => {
       if (command === 22) {
         // Takeoff - include lat/lng, hold time, yaw
         items.push({
-          AMSLAltAboveTerrain: null,
+          AMSLAltAboveTerrain: wp.altitude,
           Altitude: wp.altitude,
           AltitudeMode: 1,
           autoContinue: true,
@@ -405,6 +405,30 @@ export const MissionProvider = ({ children }) => {
           params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wpYaw, wp.lat, wp.lng, wp.altitude],
           type: 'SimpleItem',
         });
+
+        // Add DO_SET_YAW command AFTER takeoff if yaw is rotation (>= 360)
+        if (wpYaw >= 360) {
+          const totalRotations = Math.floor(wpYaw / 360);
+          const yawRate = 30; // degrees per second
+          const finalHeading = wpYaw % 360;
+
+          items.push({
+            autoContinue: true,
+            command: 115, // MAV_CMD_DO_SET_YAW
+            doJumpId: itemIndex++,
+            frame: 1,
+            params: [
+              finalHeading,     // [0] = target yaw angle (final heading in degrees 0-360)
+              yawRate,          // [1] = yaw rate (degrees per second, 0=default)
+              totalRotations,   // [2] = direction (positive = CW from north, rotations = how many times)
+              0,                // [3] = reserved
+              0,
+              0,
+              0
+            ],
+            type: 'SimpleItem',
+          });
+        }
       } else if (command === 20) {
         // Return to Launch - add speed change before RTL if needed
         if (wpSpeed !== lastWpSpeed) {
@@ -431,9 +455,71 @@ export const MissionProvider = ({ children }) => {
           command: 20,
           doJumpId: itemIndex++,
           frame: 2,
-          params: [0, 0, 0, 0, 0, 0, 0],
+          params: [0, 0, 0, wpYaw % 360, 0, 0, 0],
+          type: 'SimpleItem',
+          AltitudeMode: 1,
+        });
+
+        // Add DO_SET_YAW command AFTER RTL if yaw is rotation (>= 360)
+        if (wpYaw >= 360) {
+          const totalRotations = Math.floor(wpYaw / 360);
+          const yawRate = 30; // degrees per second
+          const finalHeading = wpYaw % 360;
+
+          items.push({
+            autoContinue: true,
+            command: 115, // MAV_CMD_DO_SET_YAW
+            doJumpId: itemIndex++,
+            frame: 1,
+            params: [
+              finalHeading,     // [0] = target yaw angle (final heading in degrees 0-360)
+              yawRate,          // [1] = yaw rate (degrees per second, 0=default)
+              totalRotations,   // [2] = direction (positive = CW from north, rotations = how many times)
+              0,                // [3] = reserved
+              0,
+              0,
+              0
+            ],
+            type: 'SimpleItem',
+          });
+        }
+      } else if (command === 21) {
+        // Land - include hold time, acceptance radius, pass radius, yaw
+        items.push({
+          AMSLAltAboveTerrain: null,
+          Altitude: wp.altitude,
+          AltitudeMode: 1,
+          autoContinue: true,
+          command: 21,
+          doJumpId: itemIndex++,
+          frame: 3,
+          params: [wp.holdTime || 0, wp.acceptanceRadius || 5, wp.passRadius || 0, wpYaw % 360, wp.lat, wp.lng],
           type: 'SimpleItem',
         });
+
+        // Add DO_SET_YAW command AFTER land if yaw is rotation (>= 360)
+        if (wpYaw >= 360) {
+          const totalRotations = Math.floor(wpYaw / 360);
+          const yawRate = 30; // degrees per second
+          const finalHeading = wpYaw % 360;
+
+          items.push({
+            autoContinue: true,
+            command: 115, // MAV_CMD_DO_SET_YAW
+            doJumpId: itemIndex++,
+            frame: 1,
+            params: [
+              finalHeading,     // [0] = target yaw angle (final heading in degrees 0-360)
+              yawRate,          // [1] = yaw rate (degrees per second, 0=default)
+              totalRotations,   // [2] = direction (positive = CW from north, rotations = how many times)
+              0,                // [3] = reserved
+              0,
+              0,
+              0
+            ],
+            type: 'SimpleItem',
+          });
+        }
       } else {
         // Regular waypoint or loiter - include hold time, acceptance radius, pass radius, yaw
         items.push({

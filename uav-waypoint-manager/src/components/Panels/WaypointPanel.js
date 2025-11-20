@@ -255,7 +255,7 @@ const WaypointPanel = () => {
               {/* Waypoint Parameters - Shown Only When Expanded */}
               {isExpanded && (
                 <div className="px-4 pb-4 border-t border-gray-200 space-y-2">
-                {/* Takeoff - Only Altitude */}
+                {/* Takeoff - Altitude, Speed, Yaw */}
                 {waypoint.action === "takeoff" && (
                   <>
                     <div className="grid grid-cols-2 gap-2">
@@ -276,6 +276,47 @@ const WaypointPanel = () => {
                           onClick={(e) => e.stopPropagation()}
                           step="0.1"
                           min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Speed (m/s)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.speed}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              speed: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Yaw (deg)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.yaw || 0}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              yaw: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          min="0"
+                          step="1"
                         />
                       </div>
                       {distanceToNext !== null && (
@@ -343,7 +384,7 @@ const WaypointPanel = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-xs text-gray-600 block mb-1">
-                          Yaw (deg)
+                          Yaw (deg, use &gt;360 for rotations)
                         </label>
                         <input
                           type="number"
@@ -357,7 +398,6 @@ const WaypointPanel = () => {
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onClick={(e) => e.stopPropagation()}
                           min="0"
-                          max="360"
                           step="1"
                         />
                       </div>
@@ -483,29 +523,176 @@ const WaypointPanel = () => {
                   </>
                 )}
 
-                {/* RTL - Only Altitude */}
-                {waypoint.action === "rtl" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-600 block mb-1">
-                        Altitude (m)
-                      </label>
-                      <input
-                        type="number"
-                        value={waypoint.altitude}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          updateWaypoint(waypoint.id, {
-                            altitude: parseFloat(e.target.value) || 0,
-                          });
-                        }}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                        step="0.1"
-                        min="0"
-                      />
+                {/* Land - Altitude, Speed, Yaw, Hold Time */}
+                {waypoint.action === "land" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Altitude (m)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.altitude}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              altitude: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Speed (m/s)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.speed}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              speed: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
+                        />
+                      </div>
                     </div>
-                  </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Yaw (deg, use &gt;360 for rotations)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.yaw || 0}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              yaw: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Hold Time (s)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.holdTime || 0}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              holdTime: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          step="1"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+
+                    {distanceToNext !== null && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-600 block mb-1">
+                            Distance to Next (m)
+                          </label>
+                          <input
+                            type="text"
+                            value={distanceToNext.toFixed(1)}
+                            readOnly
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded bg-gray-50 text-gray-700 font-semibold"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* RTL - Altitude, Speed, Yaw */}
+                {waypoint.action === "rtl" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Altitude (m)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.altitude}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              altitude: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Speed (m/s)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.speed}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              speed: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          step="0.1"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">
+                          Yaw (deg)
+                        </label>
+                        <input
+                          type="number"
+                          value={waypoint.yaw || 0}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateWaypoint(waypoint.id, {
+                              yaw: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                    </div>
+                  </>
                 )}
                 </div>
               )}
